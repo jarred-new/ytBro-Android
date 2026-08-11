@@ -5,6 +5,8 @@ from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 #from kivy.uix.checkbox import CheckBox
 
+from functools import partial
+
 import threading
 import yt_dlp
 import os
@@ -13,49 +15,55 @@ from ColoredLabel import ColoredLabel
 from ColoredLayout import ColoredLayout
 from TextCheckbox import TextCheckbox
 
+from TextLogger import TextLogger
+
+isPlaylist = False
+isAudio = False
+
 class YtBro(App):
+    
     def build(self):
         pd = 18 # Padding
         
-        layout = ColoredLayout(
+        self.layout = ColoredLayout(
         	orientation='vertical',
         	padding=[pd, pd, pd, pd],
             spacing=35
         )
         # Note: to change color, go to the ColoredLayout.py file
         
-        logoLayout = BoxLayout(
+        self.logoLayout = BoxLayout(
             orientation='vertical',
             size_hint_y=None,
             height=222
         )
         
-        logo = ColoredLabel(
+        self.logo = ColoredLabel(
             text="[b]YtBro[/b]", 
             markup=True,
             bg_color=(0.7, 0, 0, 1),
             font_size=88           
         )
         
-        slogan = ColoredLabel(
+        self.slogan = ColoredLabel(
             text="YouTube Downloader by Jarred (Powered by yt-dlp)", 
             bg_color=(0.7, 0, 0, 1),
             font_size=45
         )
         
-        logoLayout.add_widget(logo)
-        logoLayout.add_widget(slogan)
-        layout.add_widget(logoLayout)
+        self.logoLayout.add_widget(self.logo)
+        self.logoLayout.add_widget(self.slogan)
+        self.layout.add_widget(self.logoLayout)
         
-        urlInput = TextInput(
+        self.urlInput = TextInput(
             hint_text="Enter your YouTube or any kind of URL",
             multiline=False,
             size_hint_y=None,
             height=50
         )
-        layout.add_widget(urlInput)
+        self.layout.add_widget(self.urlInput)
         
-        settingsLabel = Label(
+        self.settingsLabel = Label(
             text="[b]Settings:[/b]",
             markup=True,
             font_size=45,
@@ -64,41 +72,115 @@ class YtBro(App):
             height=20,
             color=(0,0,0,1)
         )
-        layout.add_widget(settingsLabel)
+        self.layout.add_widget(self.settingsLabel)
         
-        playlist = TextCheckbox(
+        self.playlist = TextCheckbox(
             text="Download Playlist",
             text_color=(0,0,0,1),
             check_color=(0.9,0,0,1)
         )
-        layout.add_widget(playlist)
+        self.playlist.bind(active=self.on_playlist_changed)
+        self.layout.add_widget(self.playlist)
         
-        audio = TextCheckbox(
+        self.audio = TextCheckbox(
             text="Download Audio Only",
             text_color=(0,0,0,1),
             check_color=(0.9,0,0,1)
         )
-        layout.add_widget(audio)
+        self.audio.bind(active=self.on_audio_changed)
+        self.layout.add_widget(self.audio)
         
-        selectPath_button = Button(
+        self.selectPath_button = Button(
             text='Select Download Path', 
             size_hint_y=0.1
         )
-        layout.add_widget(selectPath_button)
+        self.layout.add_widget(self.selectPath_button)
         
-        download_button = Button(
+        self.download_button = Button(
             text='Download', 
             size_hint_y=0.1
         )
-        layout.add_widget(download_button)
+        self.download_button.bind(
+            on_press=self.start_download
+        )
+        self.layout.add_widget(self.download_button)
         
-        log = TextInput(
+        self.log = TextInput(
             multiline=True,
             readonly=True
         )
-        layout.add_widget(log)
+        self.layout.add_widget(self.log)
+        self.logger = TextLogger(self.log)
         
-        return layout
+        return self.layout
+   
+    def on_audio_changed(self, checkbox, value):
+        global isAudio
+        isAudio = value
+        
+    def on_playlist_changed(self, checkbox, value):
+        global isPlaylist
+        isPlaylist = value
+   
+    def start_download(self, instance):
+        url = self.urlInput.text.strip()
+
+        if not url:
+            self.logger.error("Please enter a URL.")
+            return
+
+        self.logger.debug("Starting download...")
+        self.logger.debug("URL: " + url)
+
+        # Don't run yt-dlp directly on the Kivy UI thread.
+        threading.Thread(
+            target=self.download,
+            args=(url,),
+            daemon=True
+        ).start()
+
+    def download(self, url):
+        global isAudio, isPlaylist
+    
+        ydl_opts = {
+            "format": "best[height<=1080]/best" if not isAudio else "bestaudio/best",
+            "logger": self.logger,
+            "noplaylist": not isPlaylist,
+            # Don't print yt-dlp output to the terminal.
+            "quiet": False,
+            "no_warnings": False,
+            # Send download progress to our function.
+            "progress_hooks": [
+                self.download_progress
+            ],
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+
+            self.logger.debug("Download completed.")
+
+        except Exception as e:
+            self.logger.error(str(e))
+
+    def download_progress(self, data):
+
+        if data["status"] == "downloading":
+
+            percent = data.get("_percent_str", "").strip()
+            speed = data.get("_speed_str", "").strip()
+            eta = data.get("_eta", "")
+
+            self.logger.append_log(
+                f"{percent} | {speed} | ETA: {eta}"
+            )
+
+        elif data["status"] == "finished":
+
+            self.logger.append_log(
+                "Download finished. Processing..."
+            )
 
 if __name__ == '__main__':
     YtBro().run()
