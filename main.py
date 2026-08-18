@@ -270,46 +270,33 @@ class YtBro(App):
             1001
         )
         
-    def get_absolute_path_from_uri(uri_string):
-        # Initialize necessary Android Java classes via Pyjnius
-        Uri = autoclass('android.net.Uri')
-        DocumentsContract = autoclass('android.provider.DocumentsContract')
-        Environment = autoclass('android.os.Environment')
-        
-        # Parse the string into a Java Uri object
-        current_uri = Uri.parse(uri_string)
-        
-        # Extract the Document ID from the selected tree URI
-        document_id = DocumentsContract.getTreeDocumentId(current_uri)
-        
-        # Split the document ID into storage id and relative path (e.g., "primary:Download/MyFolder")
-        parts = document_id.split(':')
-        storage_id = parts[0]
-        relative_path = parts[1] if len(parts) > 1 else ""
-        
-        # Check if the folder is on the primary internal storage
-        if storage_id.lower() == "primary":
-            external_storage_base = Environment.getExternalStorageDirectory().getAbsolutePath()
-            absolute_path = os.path.join(external_storage_base, relative_path)
-            return os.path.normpath(absolute_path)
-        
-        # Handle external SD Cards / removable media storage structures
-        else:
-            # Check standard removable media directory allocations
-            fallback_removable_root = f"/storage/{storage_id}"
-            if os.path.exists(fallback_removable_root):
-                absolute_path = os.path.join(fallback_removable_root, relative_path)
-                return os.path.normpath(absolute_path)
-                
-            # Alternative fallback loop for non-standard device mount points
-            for root in ['/storage', '/mnt/media_rw', '/mnt']:
-                potential_path = os.path.join(root, storage_id, relative_path)
-                if os.path.exists(potential_path):
-                    return os.path.normpath(potential_path)
-                    
-        # Return basic fallback reconstruction if existence checks fail due to sandbox quirks
-        return os.path.normpath(os.path.join("/storage", storage_id, relative_path))
-            
+    def saf_uri_to_path(self, uri):
+        uri_string = str(uri.toString())
+    
+        document_id = (
+            DocumentsContract.getTreeDocumentId(uri)
+        )
+    
+        self.logger.debug("SAF URI:", uri_string)
+        self.logger.debug("Document ID:", document_id)
+    
+        # Internal/shared storage
+        if document_id.startswith("primary:"):
+    
+            relative_path = document_id.split(
+                ":",
+                1
+            )[1]
+    
+            if relative_path:
+                return "/storage/emulated/0/" + relative_path
+    
+            return "/storage/emulated/0"
+    
+        # Other storage providers cannot safely be
+        # converted into a normal filesystem path.
+        return None
+    
     def on_activity_result(self, request_code, result_code, intent):
         if request_code != 1001:
             return
@@ -327,24 +314,29 @@ class YtBro(App):
             return
     
         uri = intent.getData()
-    
-        if uri is None:
-            self.logger.error(
-                "No URI returned."
-            )
-            return
-    
-        # Java Uri -> Python string
-        uri_string = str(
-            uri.toString()
-        )
-    
-        self.downloadUri = uri_string
-    
-        self.logger.debug(
-            "SAF URI selected: " +
-            uri_string
-        )
+        
+        if uri is not None:
+        
+            path = self.saf_uri_to_path(uri)
+        
+            if path is not None:
+        
+                self.downloadPath = path
+        
+                self.logger.debug(
+                    "Download path:",
+                    self.downloadPath
+                )
+        
+            else:
+        
+                self.logger.warning(
+                    "Selected location is SAF-only:"
+                )
+        
+                self.logger.debug(
+                    uri.toString()
+                )
     
         # Persist permission
         flags = (
@@ -383,7 +375,7 @@ class YtBro(App):
         # Display URI
         self.pathLabel.text = (
             "Download Path:\n" +
-            uri_string
+            self.downloadPath
         )
     
     # ======================================================
