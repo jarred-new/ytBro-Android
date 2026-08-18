@@ -15,6 +15,7 @@ from functools import partial
 import threading
 import yt_dlp
 import os
+import urllib.parse
 #from sys import platform
 
 from ColoredLabel import ColoredLabel
@@ -22,7 +23,7 @@ from ColoredLayout import ColoredLayout
 from TextCheckbox import TextCheckbox
 from TextLogger import TextLogger
 
-from jnius import autoclass
+from jnius import autoclass, cast
 #from android import activity
 
 
@@ -47,7 +48,7 @@ class YtBro(App):
             #self.downloadPath = os.path.expanduser("~/Downloads")
         
         self.downloadPath = "/storage/emulated/0/Download"
-        self.downloadUri = None
+        #self.downloadUri = None
         
         # --------------------------------------------------
         # MAIN LAYOUT
@@ -247,6 +248,46 @@ class YtBro(App):
             1001
         )
         
+    def get_absolute_path_from_uri(uri_string):
+        # Initialize necessary Android Java classes via Pyjnius
+        Uri = autoclass('android.net.Uri')
+        DocumentsContract = autoclass('android.provider.DocumentsContract')
+        Environment = autoclass('android.os.Environment')
+        
+        # Parse the string into a Java Uri object
+        current_uri = Uri.parse(uri_string)
+        
+        # Extract the Document ID from the selected tree URI
+        document_id = DocumentsContract.getTreeDocumentId(current_uri)
+        
+        # Split the document ID into storage id and relative path (e.g., "primary:Download/MyFolder")
+        parts = document_id.split(':')
+        storage_id = parts[0]
+        relative_path = parts[1] if len(parts) > 1 else ""
+        
+        # Check if the folder is on the primary internal storage
+        if storage_id.lower() == "primary":
+            external_storage_base = Environment.getExternalStorageDirectory().getAbsolutePath()
+            absolute_path = os.path.join(external_storage_base, relative_path)
+            return os.path.normpath(absolute_path)
+        
+        # Handle external SD Cards / removable media storage structures
+        else:
+            # Check standard removable media directory allocations
+            fallback_removable_root = f"/storage/{storage_id}"
+            if os.path.exists(fallback_removable_root):
+                absolute_path = os.path.join(fallback_removable_root, relative_path)
+                return os.path.normpath(absolute_path)
+                
+            # Alternative fallback loop for non-standard device mount points
+            for root in ['/storage', '/mnt/media_rw', '/mnt']:
+                potential_path = os.path.join(root, storage_id, relative_path)
+                if os.path.exists(potential_path):
+                    return os.path.normpath(potential_path)
+                    
+        # Return basic fallback reconstruction if existence checks fail due to sandbox quirks
+        return os.path.normpath(os.path.join("/storage", storage_id, relative_path))
+            
     def on_activity_result(self, request_code, result_code, intent):
         if request_code != 1001:
             return
@@ -280,11 +321,13 @@ class YtBro(App):
         except Exception as e:
             self.logger.debug("Could not persist URI permission:", e)
 
-        self.downloadUri = uri.toString()
+        self.downloadPath = self.get_absolute_path_from_uri(
+            uri.toString()
+           )
 
         self.pathLabel.text = (
             "Download folder:\n"
-            + self.downloadUri
+            + self.downloadPath
         )
 
 
