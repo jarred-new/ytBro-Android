@@ -23,26 +23,26 @@ from ColoredLayout import ColoredLayout
 from TextCheckbox import TextCheckbox
 from TextLogger import TextLogger
 
-from jnius import autoclass, cast
-from android import activity
+#from jnius import autoclass, cast
+#from android import activity
 
 
 # Android Java classes
-PythonActivity = autoclass(
-    "org.kivy.android.PythonActivity"
-)
+#PythonActivity = autoclass(
+#    "org.kivy.android.PythonActivity"
+#)
 
-Intent = autoclass(
-    "android.content.Intent"
-)
+#Intent = autoclass(
+#    "android.content.Intent"
+#)
 
-DocumentsContract = autoclass(
-    "android.provider.DocumentsContract"
-)
+#DocumentsContract = autoclass(
+#    "android.provider.DocumentsContract"
+#)
 
-Uri = autoclass(
-    "android.net.Uri"
-)
+#Uri = autoclass(
+#    "android.net.Uri"
+#)
 
 isPlaylist = False
 isAudio = False
@@ -60,17 +60,9 @@ class YtBro(App):
         #else:
             #self.downloadPath = os.path.expanduser("~/Downloads")
         
-        self.downloadPath = os.path.join(
-        self.user_data_dir,
-            "downloads"
-            )
+        self.downloadPath = "/storage/emulated/0/Download"
 
-        os.makedirs(
-            self.downloadPath,
-            exist_ok=True
-            )
-
-        self.downloadUri = None
+        #self.downloadUri = None
         
         # --------------------------------------------------
         # MAIN LAYOUT
@@ -171,28 +163,28 @@ class YtBro(App):
         # DOWNLOAD PATH
         # --------------------------------------------------
 
-        self.pathLabel = Label(
-            text="Download Path:\n" + self.downloadPath,
-            color=(0, 0, 0, 1),
-            font_size=30,
-            size_hint_y=None,
-            height=55
-        )
+        #self.pathLabel = Label(
+#            text="Download Path:\n" + self.downloadPath,
+#            color=(0, 0, 0, 1),
+#            font_size=30,
+#            size_hint_y=None,
+#            height=55
+#        )
 
-        self.layout.add_widget(self.pathLabel)
+#        self.layout.add_widget(self.pathLabel)
 
-        self.selectPath_button = Button(
-            text='Select Download Path',
-            size_hint_y=0.1
-        )
+#        self.selectPath_button = Button(
+#            text='Select Download Path',
+#            size_hint_y=0.1
+#        )
 
-        self.selectPath_button.bind(
-            on_press=self.select_download_path
-        )
+#        self.selectPath_button.bind(
+#            on_press=self.select_download_path
+#        )
 
-        self.layout.add_widget(
-            self.selectPath_button
-        )
+#        self.layout.add_widget(
+#            self.selectPath_button
+#        )
 
         # --------------------------------------------------
         # DOWNLOAD BUTTON
@@ -253,131 +245,131 @@ class YtBro(App):
     # SELECT DOWNLOAD PATH
     # ======================================================
 
-    def select_download_path(self, instance):
-        intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+    #def select_download_path(self, instance):
+#        intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
 
-        # Allow the application to retain permission
-        flags = (
-            Intent.FLAG_GRANT_READ_URI_PERMISSION
-            | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-        )
+#        # Allow the application to retain permission
+#        flags = (
+#            Intent.FLAG_GRANT_READ_URI_PERMISSION
+#            | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+#            | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+#        )
 
-        intent.addFlags(flags)
+#        intent.addFlags(flags)
 
-        PythonActivity.mActivity.startActivityForResult(
-            intent,
-            1001
-        )
-        
-    def saf_uri_to_path(self, uri):
-        uri_string = str(uri.toString())
-    
-        document_id = (
-            DocumentsContract.getTreeDocumentId(uri)
-        )
-    
-        self.logger.debug("SAF URI:", uri_string)
-        self.logger.debug("Document ID:", document_id)
-    
-        # Internal/shared storage
-        if document_id.startswith("primary:"):
-    
-            relative_path = document_id.split(
-                ":",
-                1
-            )[1]
-    
-            if relative_path:
-                return "/storage/emulated/0/" + relative_path
-    
-            return "/storage/emulated/0"
-    
-        # Other storage providers cannot safely be
-        # converted into a normal filesystem path.
-        return None
-    
-    def on_activity_result(self, request_code, result_code, intent):
-        if request_code != 1001:
-            return
-    
-        if result_code != -1:
-            self.logger.debug(
-                "Folder selection cancelled."
-            )
-            return
-    
-        if intent is None:
-            self.logger.error(
-                "No folder selection result."
-            )
-            return
-    
-        uri = intent.getData()
-        
-        if uri is not None:
-        
-            path = self.saf_uri_to_path(uri)
-        
-            if path is not None:
-        
-                self.downloadPath = path
-        
-                self.logger.debug(
-                    "Download path:",
-                    self.downloadPath
-                )
-        
-            else:
-        
-                self.logger.warning(
-                    "Selected location is SAF-only:"
-                )
-        
-                self.logger.debug(
-                    uri.toString()
-                )
-    
-        # Persist permission
-        flags = (
-            intent.getFlags()
-            &
-            (
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
-                |
-                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-        )
-    
-        try:
-    
-            resolver = (
-                PythonActivity.mActivity
-                .getContentResolver()
-            )
-    
-            resolver.takePersistableUriPermission(
-                uri,
-                flags
-            )
-    
-            self.logger.debug(
-                "SAF permission persisted."
-            )
-    
-        except Exception as e:
-    
-            self.logger.error(
-                "Could not persist SAF permission: " +
-                str(e)
-            )
-    
-        # Display URI
-        self.pathLabel.text = (
-            "Download Path:\n" +
-            self.downloadPath
-        )
-    
+#        PythonActivity.mActivity.startActivityForResult(
+#            intent,
+#            1001
+#        )
+#        
+#    def saf_uri_to_path(self, uri):
+#        uri_string = str(uri.toString())
+#    
+#        document_id = (
+#            DocumentsContract.getTreeDocumentId(uri)
+#        )
+#    
+#        self.logger.debug("SAF URI:", uri_string)
+#        self.logger.debug("Document ID:", document_id)
+#    
+#        # Internal/shared storage
+#        if document_id.startswith("primary:"):
+#    
+#            relative_path = document_id.split(
+#                ":",
+#                1
+#            )[1]
+#    
+#            if relative_path:
+#                return "/storage/emulated/0/" + relative_path
+#    
+#            return "/storage/emulated/0"
+#    
+#        # Other storage providers cannot safely be
+#        # converted into a normal filesystem path.
+#        return None
+#    
+#    def on_activity_result(self, request_code, result_code, intent):
+#        if request_code != 1001:
+#            return
+#    
+#        if result_code != -1:
+#            self.logger.debug(
+#                "Folder selection cancelled."
+#            )
+#            return
+#    
+#        if intent is None:
+#            self.logger.error(
+#                "No folder selection result."
+#            )
+#            return
+#    
+#        uri = intent.getData()
+#        
+#        if uri is not None:
+#        
+#            path = self.saf_uri_to_path(uri)
+#        
+#            if path is not None:
+#        
+#                self.downloadPath = path
+#        
+#                self.logger.debug(
+#                    "Download path:",
+#                    self.downloadPath
+#                )
+#        
+#            else:
+#        
+#                self.logger.warning(
+#                    "Selected location is SAF-only:"
+#                )
+#        
+#                self.logger.debug(
+#                    uri.toString()
+#                )
+#    
+#        # Persist permission
+#        flags = (
+#            intent.getFlags()
+#            &
+#            (
+#                Intent.FLAG_GRANT_READ_URI_PERMISSION
+#                |
+#                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+#            )
+#        )
+#    
+#        try:
+#    
+#            resolver = (
+#                PythonActivity.mActivity
+#                .getContentResolver()
+#            )
+#    
+#            resolver.takePersistableUriPermission(
+#                uri,
+#                flags
+#            )
+#    
+#            self.logger.debug(
+#                "SAF permission persisted."
+#            )
+#    
+#        except Exception as e:
+#    
+#            self.logger.error(
+#                "Could not persist SAF permission: " +
+#                str(e)
+#            )
+#    
+#        # Display URI
+#        self.pathLabel.text = (
+#            "Download Path:\n" +
+#            self.downloadPath
+#        )
+#    
     # ======================================================
     # START DOWNLOAD
     # ======================================================
@@ -446,7 +438,7 @@ class YtBro(App):
             "noplaylist": not isPlaylist,
 
             # Console output
-            "js_runtimes": {"deno": {}},
+            #"js_runtimes": {"deno": {}},
             "force_ipv4": True,
             "verbose": True,
             #"quiet": False,
@@ -524,23 +516,22 @@ class YtBro(App):
 
 app = YtBro()
 
+#def on_activity_result(
+#    request_code,
+#    result_code,
+#    intent
+#):
 
-def on_activity_result(
-    request_code,
-    result_code,
-    intent
-):
-
-    app.on_activity_result(
-        request_code,
-        result_code,
-        intent
-    )
+#    app.on_activity_result(
+#        request_code,
+#        result_code,
+#        intent
+#    )
 
 
-activity.bind(
-    on_activity_result=on_activity_result
-)
+#activity.bind(
+#    on_activity_result=on_activity_result
+#)
 
 
 if __name__ == '__main__':

@@ -22,7 +22,7 @@ icon.filename = %(source.dir)s/data/icon.png
 
 presplash.filename = %(source.dir)s/data/presplash.png
 
-presplash.color = #800000
+presplash.color = #550000
 
 android.api = 35
 
