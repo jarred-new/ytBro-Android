@@ -4,8 +4,9 @@ from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 from kivy.uix.popup import Popup
-from kivy.uix.filechooser import FileChooserListView
+#from kivy.uix.filechooser import FileChooserListView
 from kivy.clock import Clock
+from kivy.utils import platform
 
 #from kivy.uix.checkbox import CheckBox
 
@@ -14,13 +15,20 @@ from functools import partial
 import threading
 import yt_dlp
 import os
+#from sys import platform
 
 from ColoredLabel import ColoredLabel
 from ColoredLayout import ColoredLayout
 from TextCheckbox import TextCheckbox
-
 from TextLogger import TextLogger
 
+from jnius import autoclass
+#from android import activity
+
+
+# Android Java classes
+Intent = autoclass("android.content.Intent")
+PythonActivity = autoclass("org.kivy.android.PythonActivity")
 
 isPlaylist = False
 isAudio = False
@@ -33,8 +41,14 @@ class YtBro(App):
         pd = 18  # Padding
 
         # Default download directory
-        self.downloadPath = os.path.expanduser("~/Downloads")
-
+        #if platform == "android":
+            #self.downloadPath = "/storage/emulated/0/Download"
+        #else:
+            #self.downloadPath = os.path.expanduser("~/Downloads")
+        
+        self.downloadPath = "/storage/emulated/0/Download"
+        self.downloadUri = None
+        
         # --------------------------------------------------
         # MAIN LAYOUT
         # --------------------------------------------------
@@ -186,7 +200,14 @@ class YtBro(App):
         self.layout.add_widget(self.log)
 
         self.logger = TextLogger(self.log)
-
+        
+        if platform == 'android':
+            try:
+                from android import activity
+                activity.bind(on_activity_result=self.on_activity_result)
+            except Exception as e:
+                self.logger.error("Skipping activity binding: Not running inside a compiled APK or something. Please report this to the developer...")   
+        
         return self.layout
 
     # ======================================================
@@ -210,90 +231,64 @@ class YtBro(App):
     # ======================================================
 
     def select_download_path(self, instance):
+        intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
 
-        # Start at the current download directory
-        start_path = self.downloadPath
-
-        if not os.path.isdir(start_path):
-            start_path = os.path.expanduser("~")
-
-        chooser = FileChooserListView(
-            path=start_path,
-            dirselect=True
+        # Allow the application to retain permission
+        flags = (
+            Intent.FLAG_GRANT_READ_URI_PERMISSION
+            | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
         )
 
-        # Buttons
-        buttons = BoxLayout(
-            size_hint_y=None,
-            height=50
+        intent.addFlags(flags)
+
+        PythonActivity.mActivity.startActivityForResult(
+            intent,
+            1001
         )
+        
+    def on_activity_result(self, request_code, result_code, intent):
+        if request_code != 1001:
+            return
 
-        cancel_button = Button(
-            text="Cancel"
-        )
+        if intent is None:
+            return
 
-        select_button = Button(
-            text="Select"
-        )
+        Activity = autoclass("android.app.Activity")
 
-        buttons.add_widget(cancel_button)
-        buttons.add_widget(select_button)
+        if result_code != Activity.RESULT_OK:
+            return
 
-        # Popup layout
-        popup_layout = BoxLayout(
-            orientation='vertical'
-        )
+        uri = intent.getData()
 
-        popup_layout.add_widget(chooser)
-        popup_layout.add_widget(buttons)
+        if uri is None:
+            return
 
-        popup = Popup(
-            title="Select Download Folder",
-            content=popup_layout,
-            size_hint=(0.95, 0.9)
-        )
+        # Persist permission
+        resolver = PythonActivity.mActivity.getContentResolver()
 
-        # Cancel
-        cancel_button.bind(
-            on_press=popup.dismiss
-        )
-
-        # Select
-        select_button.bind(
-            on_press=lambda x: self.set_download_path(
-                chooser,
-                popup
+        flags = (
+            intent.getFlags()
+            & (
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
         )
 
-        popup.open()
+        try:
+            resolver.takePersistableUriPermission(uri, flags)
+        except Exception as e:
+            self.logger.debug("Could not persist URI permission:", e)
 
-    def set_download_path(self, chooser, popup):
-
-        if not chooser.selection:
-            return
-
-        selected_path = chooser.selection[0]
-
-        if not os.path.isdir(selected_path):
-            self.logger.error(
-                "Selected path is not a folder."
-            )
-            return
-
-        self.downloadPath = selected_path
+        self.downloadUri = uri.toString()
 
         self.pathLabel.text = (
-            "Download Path:\n" +
-            self.downloadPath
+            "Download folder:\n"
+            + self.downloadUri
         )
 
-        self.logger.debug(
-            "Download path selected: " +
-            self.downloadPath
-        )
 
-        popup.dismiss()
+    
 
     # ======================================================
     # START DOWNLOAD
@@ -358,14 +353,16 @@ class YtBro(App):
 
             # Logger
             "logger": self.logger,
-
+            
             # Playlist
             "noplaylist": not isPlaylist,
 
             # Console output
-            "quiet": False,
-
-            "no_warnings": False,
+            "js_runtimes": {"deno": {}},
+            "force_ipv4": True,
+            "verbose": True,
+            #"quiet": False,
+            "no_warnings": True,
 
             # Save to selected folder
             "outtmpl": os.path.join(
