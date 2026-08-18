@@ -24,12 +24,25 @@ from TextCheckbox import TextCheckbox
 from TextLogger import TextLogger
 
 from jnius import autoclass, cast
-#from android import activity
+from android import activity
 
 
 # Android Java classes
-Intent = autoclass("android.content.Intent")
-PythonActivity = autoclass("org.kivy.android.PythonActivity")
+PythonActivity = autoclass(
+    "org.kivy.android.PythonActivity"
+)
+
+Intent = autoclass(
+    "android.content.Intent"
+)
+
+DocumentsContract = autoclass(
+    "android.provider.DocumentsContract"
+)
+
+Uri = autoclass(
+    "android.net.Uri"
+)
 
 isPlaylist = False
 isAudio = False
@@ -47,8 +60,17 @@ class YtBro(App):
         #else:
             #self.downloadPath = os.path.expanduser("~/Downloads")
         
-        self.downloadPath = "/storage/emulated/0/Download"
-        #self.downloadUri = None
+        self.downloadPath = os.path.join(
+        self.user_data_dir,
+            "downloads"
+            )
+
+        os.makedirs(
+            self.downloadPath,
+            exist_ok=True
+            )
+
+        self.downloadUri = None
         
         # --------------------------------------------------
         # MAIN LAYOUT
@@ -202,12 +224,12 @@ class YtBro(App):
 
         self.logger = TextLogger(self.log)
         
-        if platform == 'android':
-            try:
-                from android import activity
-                activity.bind(on_activity_result=self.on_activity_result)
-            except Exception as e:
-                self.logger.error("Skipping activity binding: Not running inside a compiled APK or something. Please report this to the developer...")   
+        #if platform == 'android':
+            #try:
+                #from android import activity
+                #activity.bind(on_activity_result=self.on_activity_result)
+            #except Exception as e:
+                #self.logger.error("Skipping activity binding: Not running inside a compiled APK or something. Please report this to the developer...")   
         
         return self.layout
 
@@ -291,48 +313,79 @@ class YtBro(App):
     def on_activity_result(self, request_code, result_code, intent):
         if request_code != 1001:
             return
-
+    
+        if result_code != -1:
+            self.logger.debug(
+                "Folder selection cancelled."
+            )
+            return
+    
         if intent is None:
+            self.logger.error(
+                "No folder selection result."
+            )
             return
-
-        Activity = autoclass("android.app.Activity")
-
-        if result_code != Activity.RESULT_OK:
-            return
-
+    
         uri = intent.getData()
-
+    
         if uri is None:
+            self.logger.error(
+                "No URI returned."
+            )
             return
-
+    
+        # Java Uri -> Python string
+        uri_string = str(
+            uri.toString()
+        )
+    
+        self.downloadUri = uri_string
+    
+        self.logger.debug(
+            "SAF URI selected: " +
+            uri_string
+        )
+    
         # Persist permission
-        resolver = PythonActivity.mActivity.getContentResolver()
-
         flags = (
             intent.getFlags()
-            & (
+            &
+            (
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
-                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                |
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
         )
-
-        try:
-            resolver.takePersistableUriPermission(uri, flags)
-        except Exception as e:
-            self.logger.debug("Could not persist URI permission:", e)
-
-        self.downloadPath = self.get_absolute_path_from_uri(
-            uri.toString()
-           )
-
-        self.pathLabel.text = (
-            "Download folder:\n"
-            + self.downloadPath
-        )
-
-
     
-
+        try:
+    
+            resolver = (
+                PythonActivity.mActivity
+                .getContentResolver()
+            )
+    
+            resolver.takePersistableUriPermission(
+                uri,
+                flags
+            )
+    
+            self.logger.debug(
+                "SAF permission persisted."
+            )
+    
+        except Exception as e:
+    
+            self.logger.error(
+                "Could not persist SAF permission: " +
+                str(e)
+            )
+    
+        # Display URI
+        self.pathLabel.text = (
+            "Download Path:\n" +
+            uri_string
+        )
+    
     # ======================================================
     # START DOWNLOAD
     # ======================================================
@@ -477,5 +530,26 @@ class YtBro(App):
             )
 
 
+app = YtBro()
+
+
+def on_activity_result(
+    request_code,
+    result_code,
+    intent
+):
+
+    app.on_activity_result(
+        request_code,
+        result_code,
+        intent
+    )
+
+
+activity.bind(
+    on_activity_result=on_activity_result
+)
+
+
 if __name__ == '__main__':
-    YtBro().run()
+    app.run()
