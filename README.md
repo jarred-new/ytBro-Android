@@ -1,4 +1,4 @@
-# ytBro for Windows
+# ytBro for Android
 
 #### Looking for Windows? [Click here to open the Windows Repo](https://github.com/jarred-new/ytBro)
 
