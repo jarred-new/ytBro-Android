@@ -1,4 +1,6 @@
-# ytBro for Android
+# ⚠️ NOTE: Android version is now archived due to lack of maintenance and issues with downloading YouTube-only videos
+
+## ytBro for Android
 
 #### Looking for Windows? [Click here to open the Windows Repo](https://github.com/jarred-new/ytBro)
 
